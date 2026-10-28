@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank DApp</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Prompt:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" type="application/javascript"></script>
+</head>
+<body>
+    <main class="container">
+
+        <!-- Header -->
+        <header class="header">
+            <div class="logo" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6"/><path d="M5 10v8M10 10v8M14 10v8M19 10v8"/><path d="M3 20h18"/></svg>
+            </div>
+            <h1>Bank DApp</h1>
+            <p class="student-info">66073563 &nbsp;•&nbsp; ศุภชัย สังข์ศิรินทร์</p>
+        </header>
+
+        <!-- Step 1: Wallet -->
+        <section class="step-card" id="stepWallet">
+            <div class="step-head">
+                <span class="step-badge">1</span>
+                <div>
+                    <h2>Connect your wallet</h2>
+                    <p id="walletAddress" class="status-text">Not connected</p>
+                </div>
+            </div>
+            <button id="connectBtn" class="btn primary-btn">Connect MetaMask</button>
+        </section>
+
+        <!-- Step 2: Contract -->
+        <section class="step-card locked" id="stepContract">
+            <div class="step-head">
+                <span class="step-badge">2</span>
+                <div>
+                    <h2>Load your contract</h2>
+                    <p class="hint">Paste the address and ABI from Remix</p>
+                </div>
+            </div>
+            <label class="field-label" for="contractAddressInput">Contract address</label>
+            <input type="text" id="contractAddressInput" class="input-field" placeholder="0x..." autocomplete="off" spellcheck="false">
+            <label class="field-label" for="contractAbiInput">Contract ABI (JSON)</label>
+            <textarea id="contractAbiInput" class="input-field" rows="4" placeholder='[{"inputs":[],"name":"deposit",...}]' spellcheck="false"></textarea>
+            <button id="loadContractBtn" class="btn accent-btn" disabled>Load contract</button>
+        </section>
+
+        <!-- Balance -->
+        <section class="balance-card">
+            <p class="balance-label">Your balance</p>
+            <p id="balanceDisplay" class="balance-amount">0.00 ETH</p>
+            <button id="checkBalanceBtn" class="btn ghost-btn" disabled>Refresh balance</button>
+        </section>
+
+        <!-- Actions -->
+        <section class="action-card">
+            <label class="field-label" for="amountInput">Amount (ETH)</label>
+            <input type="number" id="amountInput" class="input-field amount-input" placeholder="0.00" step="0.01" min="0" inputmode="decimal">
+            <div class="chips" role="group" aria-label="Quick amounts">
+                <button type="button" class="chip" data-amount="0.01">0.01</button>
+                <button type="button" class="chip" data-amount="0.05">0.05</button>
+                <button type="button" class="chip" data-amount="0.1">0.1</button>
+                <button type="button" class="chip" data-amount="0.5">0.5</button>
+            </div>
+            <div class="button-group">
+                <button id="depositBtn" class="btn success-btn" disabled>↓ Deposit</button>
+                <button id="withdrawBtn" class="btn danger-btn" disabled>↑ Withdraw</button>
+            </div>
+        </section>
+
+        <!-- Feedback -->
+        <div class="feedback-section" aria-live="polite">
+            <p id="statusMessage" class="status-pill" hidden></p>
+        </div>
+
+        <!-- History -->
+        <section class="history-section">
+            <h2>Recent activity</h2>
+            <ul id="txHistoryList" class="tx-list">
+                <li class="empty-state">Load your contract to see your deposits and withdrawals.</li>
+            </ul>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
