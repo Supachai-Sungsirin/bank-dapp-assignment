@@ -1,6 +1,10 @@
-let provider;
-let signer;
-let bankContract;
+let provider;          // สำหรับ MetaMask (Write)
+let signer;            // สำหรับ MetaMask (Write)
+let bankContract;      // สำหรับ MetaMask (Write - มี Signer)
+
+let readProvider;      // สำหรับ Infura (Read)
+let readContract;      // สำหรับ Infura (Read - ไม่มี Signer)
+
 let userAddress;
 
 const connectBtn = document.getElementById("connectBtn");
@@ -23,9 +27,7 @@ const chips = document.querySelectorAll(".chip");
 
 let statusTimer;
 
-// type: "success" | "info" | "error"
 function showStatus(message, type = "success") {
-    // รองรับโค้ดเดิมที่ส่ง true = error
     if (type === true) type = "error";
     if (type === false) type = "success";
 
@@ -45,7 +47,6 @@ function enableContractInteraction() {
     withdrawBtn.disabled = false;
 }
 
-// ปุ่มแสดงสถานะกำลังทำงาน ป้องกันการกดซ้ำ
 function setBusy(buttons, busy) {
     buttons.forEach(btn => {
         btn.disabled = busy;
@@ -58,7 +59,6 @@ function setAmount(value) {
     chips.forEach(c => c.classList.toggle("active", c.dataset.amount === String(value)));
 }
 
-// ปุ่มจำนวนเงินด่วน
 chips.forEach(chip => {
     chip.addEventListener("click", () => setAmount(chip.dataset.amount));
 });
@@ -66,7 +66,7 @@ amountInput.addEventListener("input", () => {
     chips.forEach(c => c.classList.toggle("active", c.dataset.amount === amountInput.value));
 });
 
-// 1. เชื่อมต่อ MetaMask อย่างเดียว
+// 1. เชื่อมต่อ MetaMask (เตรียมไว้สำหรับการทำธุรกรรม)
 connectBtn.addEventListener("click", async () => {
     if (typeof window.ethereum !== "undefined") {
         try {
@@ -80,7 +80,7 @@ connectBtn.addEventListener("click", async () => {
             walletAddressDisplay.textContent = `Connected: ${userAddress.substring(0, 6)}...${userAddress.substring(38)}`;
             connectBtn.textContent = "Wallet connected";
             connectBtn.disabled = true;
-            loadContractBtn.disabled = false; // ปลดล็อกปุ่ม Load Contract
+            loadContractBtn.disabled = false;
 
             stepWallet.classList.add("done");
             stepContract.classList.remove("locked");
@@ -94,7 +94,6 @@ connectBtn.addEventListener("click", async () => {
     }
 });
 
-// ถ้าสลับบัญชีหรือเครือข่ายใน MetaMask ให้รีโหลดหน้าเพื่อกันข้อมูลคลาดเคลื่อน
 if (window.ethereum) {
     window.ethereum.on("accountsChanged", () => window.location.reload());
     window.ethereum.on("chainChanged", () => window.location.reload());
@@ -111,11 +110,17 @@ loadContractBtn.addEventListener("click", async () => {
     }
 
     try {
-        // แปลง String เป็น JSON Object
         const abi = JSON.parse(abiString);
 
-        // ผูก Address และ ABI เข้ากับ Signer
-        bankContract = new ethers.Contract(address, abi, signer);
+        // --- ตั้งค่าสำหรับสายเขียน (MetaMask) ---
+        if (signer) {
+             bankContract = new ethers.Contract(address, abi, signer);
+        }
+
+        // --- ตั้งค่าสำหรับสายอ่าน (Infura) ---
+        const infuraUrl = "https://sepolia.infura.io/v3/d347ad81b1474f9b9c15dc3d6f2b78ff";
+        readProvider = new ethers.providers.JsonRpcProvider(infuraUrl);
+        readContract = new ethers.Contract(address, abi, readProvider);
 
         showStatus("Contract loaded!");
         loadContractBtn.textContent = "Contract loaded";
@@ -125,8 +130,8 @@ loadContractBtn.addEventListener("click", async () => {
         stepContract.classList.add("done");
 
         enableContractInteraction();
-        await getBalance(); // ดึงยอดทันทีที่โหลดเสร็จ
-        await loadTransactionHistory(); // โหลดประวัติธุรกรรมทันที
+        await getBalance(); 
+        await loadTransactionHistory(); 
     } catch (error) {
         console.error(error);
         showStatus("Couldn't load the contract. Check that the address is correct and the ABI is valid JSON.", "error");
@@ -135,10 +140,12 @@ loadContractBtn.addEventListener("click", async () => {
 
 // 3. ฟังก์ชันการทำงานของ Contract
 async function getBalance() {
-    if (!bankContract) return;
+    // เปลี่ยนมาใช้ readContract (Infura) แทน
+    if (!readContract || !userAddress) return; 
     try {
         showStatus("Fetching balance...", "info");
-        const balanceWei = await bankContract.checkBlance();
+        // จำเป็นต้องส่ง address ผู้ใช้ไปด้วย เพราะฟังก์ชันใน contract อ้างอิง msg.sender (ใน Ethers.js แบบ read-only ต้อง override from)
+        const balanceWei = await readContract.checkBlance({ from: userAddress }); 
         const balanceEth = ethers.utils.formatEther(balanceWei);
         balanceDisplay.textContent = `${parseFloat(balanceEth).toFixed(4)} ETH`;
         showStatus("Balance updated.");
@@ -157,11 +164,19 @@ depositBtn.addEventListener("click", async () => {
         return;
     }
 
+    // ต้องเช็คก่อนว่าเชื่อม MetaMask หรือยัง สำหรับการ Write
+    if(!bankContract) {
+         showStatus("Please connect MetaMask and Load Contract first.", "error");
+         return;
+    }
+
     const buttons = [depositBtn, withdrawBtn];
     try {
         setBusy(buttons, true);
         showStatus("Confirm the deposit in MetaMask...", "info");
         const amountWei = ethers.utils.parseEther(amount);
+        
+        // ใช้ bankContract (MetaMask) เพื่อทำธุรกรรม
         const tx = await bankContract.deposit({ value: amountWei });
 
         showStatus("Waiting for blockchain confirmation...", "info");
@@ -186,11 +201,19 @@ withdrawBtn.addEventListener("click", async () => {
         return;
     }
 
+    // ต้องเช็คก่อนว่าเชื่อม MetaMask หรือยัง สำหรับการ Write
+    if(!bankContract) {
+         showStatus("Please connect MetaMask and Load Contract first.", "error");
+         return;
+    }
+
     const buttons = [depositBtn, withdrawBtn];
     try {
         setBusy(buttons, true);
         showStatus("Confirm the withdrawal in MetaMask...", "info");
         const amountWei = ethers.utils.parseEther(amount);
+        
+        // ใช้ bankContract (MetaMask) เพื่อทำธุรกรรม
         const tx = await bankContract.withdraw(amountWei);
 
         showStatus("Waiting for blockchain confirmation...", "info");
@@ -212,29 +235,31 @@ function setHistoryMessage(text, isError = false) {
     txHistoryList.innerHTML = "";
     const li = document.createElement("li");
     li.className = "empty-state" + (isError ? " error" : "");
-    li.textContent = text; // textContent กัน XSS จากข้อความ error
+    li.textContent = text; 
     txHistoryList.appendChild(li);
 }
 
 async function loadTransactionHistory() {
-    if (!bankContract || !userAddress) return;
+    // เปลี่ยนมาใช้ readContract (Infura)
+    if (!readContract || !userAddress) return;
 
     try {
         setHistoryMessage("Loading activity...");
 
-        if (!bankContract.filters.Deposit || !bankContract.filters.Withdraw) {
+        if (!readContract.filters.Deposit || !readContract.filters.Withdraw) {
             throw new Error("ABI ของคุณไม่มีข้อมูล Event Deposit/Withdraw กรุณาใช้ JSON ABI จาก Remix");
         }
 
-        const depositFilter = bankContract.filters.Deposit(userAddress);
-        const withdrawFilter = bankContract.filters.Withdraw(userAddress);
+        const depositFilter = readContract.filters.Deposit(userAddress);
+        const withdrawFilter = readContract.filters.Withdraw(userAddress);
 
-        const currentBlock = await provider.getBlockNumber();
-
+        // ดึง block ล่าสุดผ่าน Infura
+        const currentBlock = await readProvider.getBlockNumber();
         const fromBlock = currentBlock - 9000 > 0 ? currentBlock - 9000 : 0;
 
-        const depositLogs = await bankContract.queryFilter(depositFilter, fromBlock, "latest");
-        const withdrawLogs = await bankContract.queryFilter(withdrawFilter, fromBlock, "latest");
+        // Query Logs ผ่าน Infura
+        const depositLogs = await readContract.queryFilter(depositFilter, fromBlock, "latest");
+        const withdrawLogs = await readContract.queryFilter(withdrawFilter, fromBlock, "latest");
 
         const allLogs = [...depositLogs, ...withdrawLogs].sort((a, b) => b.blockNumber - a.blockNumber);
 
